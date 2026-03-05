@@ -172,4 +172,17 @@ PRs that introduce new settings must also update the `README.md` configuration t
 
 Releases are made by a maintainer. If you believe a fix or feature warrants a release, say so in your PR.
 
-The full release process is documented in the [CI/CD section of the README](README.md#cicd).
+When a maintainer is ready to release:
+
+1. Bump `"version"` in `package.json` (semver)
+2. Add a section to `CHANGELOG.md`
+3. Commit and tag:
+   ```bash
+   git add package.json CHANGELOG.md
+   git commit -m "chore: release v0.2.0"
+   git tag -a v0.2.0 -m "Release v0.2.0"
+   git push origin main --tags
+   ```
+4. The **Release** GitHub Actions workflow triggers automatically on the tag push, builds the `.vsix`, and attaches it to a new GitHub Release — no manual packaging or uploading needed.
+
+Users install the extension by downloading the `.vsix` from the [Releases page](https://github.com/hernanc/cursorblame/releases) and following the instructions in the README.

@@ -14,11 +14,6 @@
     "url": "https://github.com/hernanc/cursorblame/issues"
   },
   "icon": "images/icon.png",
-  "galleryBanner": {
-    "color": "#1e1e2e",
-    "theme": "dark"
-  },
-  "preview": false,
   "engines": {
     "vscode": "^1.75.0"
   },

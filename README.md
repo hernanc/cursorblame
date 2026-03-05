@@ -38,11 +38,15 @@ Hover the annotation to see the full commit details and a link to open it on you
 
 ## Installation
 
-### From the Marketplace
+CursorBlame is distributed as a `.vsix` file via GitHub Releases — no Marketplace account required.
 
-Search for **CursorBlame** in the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`).
+### Step 1 — Download
 
-### From a `.vsix` file
+Go to the [Releases page](https://github.com/hernanc/cursorblame/releases) and download the `.vsix` file from the latest release (e.g. `cursorblame-0.1.0.vsix`).
+
+### Step 2 — Install
+
+**Option A — Command line (recommended)**
 
 ```bash
 # VSCode
@@ -51,6 +55,17 @@ code --install-extension cursorblame-0.1.0.vsix
 # Cursor
 cursor --install-extension cursorblame-0.1.0.vsix
 ```
+
+**Option B — GUI**
+
+1. Open the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`)
+2. Click the `⋯` menu at the top right of the panel
+3. Select **Install from VSIX…**
+4. Pick the downloaded file
+
+### Step 3 — Reload
+
+Reload the window when prompted (`Ctrl+Shift+P` → **Developer: Reload Window**). The extension activates automatically from then on.
 
 ---
 
@@ -147,6 +162,15 @@ npm run watch
 ```
 
 Then press **F5** in VSCode/Cursor to launch an Extension Development Host with the extension loaded.
+
+### Building a local `.vsix`
+
+```bash
+npm run package
+# → cursorblame-<version>.vsix
+```
+
+Install it with `code --install-extension cursorblame-*.vsix` or via the GUI as described above.
 
 ### Project structure
 
