@@ -1,0 +1,13 @@
+# Development files — never ship these
+.vscode/**
+src/**
+out/**
+node_modules/**
+.gitignore
+tsconfig.json
+esbuild.js
+**/*.map
+
+# Only ship the production bundle, README, CHANGELOG, LICENSE, and icon
+dist/**
+!dist/extension.js

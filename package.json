@@ -1,0 +1,115 @@
+{
+  "name": "cursorblame",
+  "displayName": "CursorBlame",
+  "description": "Inline git blame on the active cursor line — hover to reveal, click to open the commit on your remote.",
+  "version": "0.1.0",
+  "publisher": "HernanC",
+  "license": "MIT",
+  "homepage": "https://github.com/hernanc/cursorblame#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hernanc/cursorblame"
+  },
+  "bugs": {
+    "url": "https://github.com/hernanc/cursorblame/issues"
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "preview": false,
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "blame",
+    "inline",
+    "annotation",
+    "cursor",
+    "gitlens",
+    "authorship",
+    "commit"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cursorblame.openCommit",
+        "title": "CursorBlame: Open Commit on Remote"
+      },
+      {
+        "command": "cursorblame.toggle",
+        "title": "CursorBlame: Toggle Inline Blame"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "cursorblame.openCommit",
+        "key": "alt+shift+o",
+        "mac": "alt+shift+o",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "CursorBlame",
+      "properties": {
+        "cursorblame.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable inline blame annotations."
+        },
+        "cursorblame.format": {
+          "type": "string",
+          "default": "{author}, {timeAgo} • {summary}",
+          "markdownDescription": "Format template for the blame annotation. Available tokens: `{author}`, `{timeAgo}`, `{date}`, `{summary}`, `{sha}`, `{shortSha}`."
+        },
+        "cursorblame.maxSummaryLength": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "Maximum characters of the commit summary to display before truncating."
+        },
+        "cursorblame.foregroundColor": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Color for the blame annotation text. Leave empty for a muted theme-aware default. Accepts any CSS color (e.g. `#888888`, `rgba(128,128,128,0.7)`) or a theme token prefixed with `theme:` (e.g. `theme:editorCodeLens.foreground`)."
+        },
+        "cursorblame.debounceMs": {
+          "type": "number",
+          "default": 150,
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "Milliseconds to wait after the cursor stops moving before showing blame."
+        },
+        "cursorblame.ignoreWhitespace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Ignore whitespace-only changes when computing blame (passes -w to git blame)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.js --production",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  }
+}
