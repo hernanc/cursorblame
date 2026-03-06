@@ -23,9 +23,15 @@ function runGit(args: string[], cwd: string): Promise<string | null> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Pure URL helpers — exported for unit testing
+// ---------------------------------------------------------------------------
+
 /**
  * Normalise any git remote URL (ssh, git://, https://) to an https:// URL.
- * Returns null if the URL cannot be normalised to a known provider.
+ * Exported for unit testing.
+ * @internal
+ * Returns null if the URL cannot be normalised.
  *
  * Examples handled:
  *   git@github.com:owner/repo.git        → https://github.com/owner/repo
@@ -33,7 +39,7 @@ function runGit(args: string[], cwd: string): Promise<string | null> {
  *   git://github.com/owner/repo.git      → https://github.com/owner/repo
  *   https://user@bitbucket.org/o/r.git   → https://bitbucket.org/o/r
  */
-function normaliseRemoteUrl(raw: string): string | null {
+export function normaliseRemoteUrl(raw: string): string | null {
   let url = raw.trim();
 
   // Strip trailing .git
@@ -69,7 +75,7 @@ function normaliseRemoteUrl(raw: string): string | null {
 }
 
 /** Detect which provider hosts a given normalised base URL. */
-function detectProvider(baseUrl: string): RemoteProvider {
+export function detectProvider(baseUrl: string): RemoteProvider {
   if (/github\.com/i.test(baseUrl)) {
     return "github";
   }
@@ -87,13 +93,13 @@ function detectProvider(baseUrl: string): RemoteProvider {
 
 /**
  * Build a commit URL for a given provider and base repo URL.
- * Returns null for unknown providers.
+ * Falls back to a generic /commit/{sha} suffix for unknown providers.
  */
-function buildCommitUrl(
+export function buildCommitUrl(
   provider: RemoteProvider,
   baseUrl: string,
   sha: string
-): string | null {
+): string {
   switch (provider) {
     case "github":
       return `${baseUrl}/commit/${sha}`;
@@ -101,16 +107,18 @@ function buildCommitUrl(
       return `${baseUrl}/-/commit/${sha}`;
     case "bitbucket":
       return `${baseUrl}/commits/${sha}`;
-    case "azure": {
+    case "azure":
       // Azure DevOps: https://dev.azure.com/{org}/{project}/_git/{repo}
       // Commit URL:   https://dev.azure.com/{org}/{project}/_git/{repo}/commit/{sha}
       return `${baseUrl}/commit/${sha}`;
-    }
     default:
-      // For unknown providers, attempt a generic /commit/{sha} suffix
       return `${baseUrl}/commit/${sha}`;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Remote info resolution
+// ---------------------------------------------------------------------------
 
 /**
  * Resolve remote info for a repository root.

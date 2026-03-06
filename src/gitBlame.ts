@@ -1,8 +1,11 @@
 /**
  * Git blame execution and line-porcelain parsing.
  *
- * Security: All git invocations use execFile() with an explicit argument
- * array — never shell string interpolation — to prevent command injection.
+ * Security:
+ *  - ALL git invocations use execFile() with an explicit argument array.
+ *    shell: true is never used — no shell string interpolation.
+ *  - File paths are always placed after `--` to prevent path-as-option injection.
+ *  - SHAs are validated with isValidSha() before use in any URL.
  */
 
 import { execFile } from "child_process";
@@ -12,17 +15,34 @@ import type { BlameInfo, FileBlameMap } from "./types";
 /** SHA used by git blame for lines that have not been committed. */
 const UNCOMMITTED_SHA = "0000000000000000000000000000000000000000";
 
-/** Validate that a string is a 40-char hex SHA. */
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+/** Validate that a string is a 40-char lowercase hex SHA-1. */
 export function isValidSha(sha: string): boolean {
   return /^[0-9a-f]{40}$/.test(sha);
 }
 
 /**
- * Run a git command safely using execFile and return stdout.
- * @param args   Argument array passed directly to git (no shell expansion).
- * @param cwd    Working directory for the command.
+ * Normalise a file path to use forward slashes.
+ * On POSIX this is a no-op; on Windows it converts backslashes.
+ * Git on all platforms accepts forward-slash paths.
  */
-function runGit(args: string[], cwd: string): Promise<string> {
+export function normalizeFilePath(filePath: string): string {
+  return filePath.split(path.sep).join("/");
+}
+
+// ---------------------------------------------------------------------------
+// Internal git runner
+// ---------------------------------------------------------------------------
+
+/**
+ * Run a git command safely using execFile and return stdout.
+ * @param args  Argument array passed directly to git (no shell expansion).
+ * @param cwd   Working directory for the command.
+ */
+export function runGit(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile("git", args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
@@ -33,6 +53,10 @@ function runGit(args: string[], cwd: string): Promise<string> {
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// Repository queries
+// ---------------------------------------------------------------------------
 
 /**
  * Retrieve the git root for a given file path.
@@ -61,6 +85,10 @@ export async function getGitHead(repoRoot: string): Promise<string | null> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Porcelain parser
+// ---------------------------------------------------------------------------
+
 /**
  * Parse git blame --line-porcelain output into a FileBlameMap.
  *
@@ -75,8 +103,10 @@ export async function getGitHead(repoRoot: string): Promise<string | null> {
  *   [previous <sha> <filename>]
  *   filename <name>
  *   \t<line content>
+ *
+ * Exported for unit testing.
  */
-function parsePorcelain(output: string): FileBlameMap {
+export function parsePorcelain(output: string): FileBlameMap {
   const result: FileBlameMap = new Map();
   const lines = output.split("\n");
   let i = 0;
@@ -136,6 +166,10 @@ function parsePorcelain(output: string): FileBlameMap {
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Public blame API
+// ---------------------------------------------------------------------------
+
 /**
  * Run git blame on an entire file and return a per-line blame map.
  * Returns null if the file is not tracked by git or blame fails.
@@ -143,24 +177,97 @@ function parsePorcelain(output: string): FileBlameMap {
  * @param filePath       Absolute path to the file.
  * @param repoRoot       Root of the git repository.
  * @param ignoreWs       Whether to pass -w (ignore whitespace).
+ * @param followMerges   Whether to pass --first-parent (v0.2).
+ * @param followRenames  Whether to pass --follow (v0.5, only via blameFileFollow).
  */
 export async function blameFile(
   filePath: string,
   repoRoot: string,
-  ignoreWs: boolean
+  ignoreWs: boolean,
+  followMerges = false,
+  followRenames = false
 ): Promise<FileBlameMap | null> {
+  const normPath = normalizeFilePath(filePath);
   const args = ["blame", "--line-porcelain"];
   if (ignoreWs) {
     args.push("-w");
   }
+  if (followMerges) {
+    args.push("--first-parent");
+  }
+  if (followRenames) {
+    args.push("--follow");
+  }
   // Use -- to separate options from path (prevents path-as-option injection)
-  args.push("--", filePath);
+  args.push("--", normPath);
 
   try {
     const output = await runGit(args, repoRoot);
     return parsePorcelain(output);
-  } catch (err) {
+  } catch {
     // Suppress "no such path in HEAD" (untracked / new file) errors silently
     return null;
   }
+}
+
+/**
+ * Convenience wrapper: run blame with --follow to handle renamed files (v0.5).
+ * The cache should be keyed by the canonical current path, not any historical path.
+ */
+export async function blameFileFollow(
+  filePath: string,
+  repoRoot: string,
+  ignoreWs: boolean,
+  followMerges: boolean
+): Promise<FileBlameMap | null> {
+  return blameFile(filePath, repoRoot, ignoreWs, followMerges, true);
+}
+
+/**
+ * Fetch the full commit message body for a given SHA (v0.4).
+ * Returns null if the SHA is invalid or the commit cannot be read.
+ *
+ * Security: SHA is validated before use; execFile is used (no shell).
+ */
+export async function getCommitBody(sha: string, repoRoot: string): Promise<string | null> {
+  if (!isValidSha(sha)) {
+    return null;
+  }
+  try {
+    // %B = raw commit body (subject + blank line + body)
+    const output = await runGit(["show", "--format=%B", "-s", "--", sha], repoRoot);
+    return output.trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the list of files changed in the last `days` days (v0.5, used by hotspot).
+ * Returns a map of file path → number of times it was modified.
+ *
+ * Security: all arguments are literal strings; no user input is interpolated.
+ */
+export async function getHotspotFiles(
+  repoRoot: string,
+  days: number
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  try {
+    const since = `${Math.max(1, days)}.days.ago`;
+    const output = await runGit(
+      ["log", `--since=${since}`, "--name-only", "--format=", "--", "."],
+      repoRoot
+    );
+    for (const line of output.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        const fullPath = path.posix.join(repoRoot, trimmed);
+        result.set(fullPath, (result.get(fullPath) ?? 0) + 1);
+      }
+    }
+  } catch {
+    // best-effort; return empty map on failure
+  }
+  return result;
 }

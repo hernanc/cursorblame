@@ -2,7 +2,7 @@
   "name": "cursorblame",
   "displayName": "CursorBlame",
   "description": "Inline git blame on the active cursor line — hover to reveal, click to open the commit on your remote.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "HernanC",
   "license": "MIT",
   "homepage": "https://github.com/hernanc/cursorblame#readme",
@@ -44,6 +44,42 @@
       {
         "command": "cursorblame.toggle",
         "title": "CursorBlame: Toggle Inline Blame"
+      },
+      {
+        "command": "cursorblame.copySha",
+        "title": "CursorBlame: Copy Commit SHA"
+      },
+      {
+        "command": "cursorblame.openPr",
+        "title": "CursorBlame: Open Pull Request / Merge Request"
+      },
+      {
+        "command": "cursorblame.setGithubToken",
+        "title": "CursorBlame: Set GitHub Token"
+      },
+      {
+        "command": "cursorblame.nextChange",
+        "title": "CursorBlame: Go to Next Line from Same Commit"
+      },
+      {
+        "command": "cursorblame.prevChange",
+        "title": "CursorBlame: Go to Previous Line from Same Commit"
+      },
+      {
+        "command": "cursorblame.peekDiff",
+        "title": "CursorBlame: Peek Diff for Current Commit"
+      },
+      {
+        "command": "cursorblame.fileStats",
+        "title": "CursorBlame: Show File Authorship Stats"
+      },
+      {
+        "command": "cursorblame.refreshHotspots",
+        "title": "CursorBlame: Refresh Hotspot Decorations"
+      },
+      {
+        "command": "cursorblame.showDashboard",
+        "title": "CursorBlame: Show Workspace Dashboard"
       }
     ],
     "keybindings": [
@@ -52,8 +88,49 @@
         "key": "alt+shift+o",
         "mac": "alt+shift+o",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "cursorblame.copySha",
+        "key": "alt+shift+c",
+        "mac": "alt+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "cursorblame.nextChange",
+        "key": "alt+]",
+        "mac": "alt+]",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "cursorblame.prevChange",
+        "key": "alt+[",
+        "mac": "alt+[",
+        "when": "editorTextFocus"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cursorblame-sidebar",
+          "title": "CursorBlame",
+          "icon": "images/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cursorblame-sidebar": [
+        {
+          "id": "cursorblame.timeline",
+          "name": "File Timeline",
+          "when": "true"
+        },
+        {
+          "id": "cursorblame.dashboard",
+          "name": "Recently Changed",
+          "when": "true"
+        }
+      ]
+    },
     "configuration": {
       "title": "CursorBlame",
       "properties": {
@@ -65,7 +142,7 @@
         "cursorblame.format": {
           "type": "string",
           "default": "{author}, {timeAgo} • {summary}",
-          "markdownDescription": "Format template for the blame annotation. Available tokens: `{author}`, `{timeAgo}`, `{date}`, `{summary}`, `{sha}`, `{shortSha}`."
+          "markdownDescription": "Format template for the blame annotation. Available tokens: `{author}`, `{timeAgo}`, `{date}`, `{summary}`, `{sha}`, `{shortSha}`. You can also use a built-in preset name: `minimal`, `verbose`, `heatmap`, `team`."
         },
         "cursorblame.maxSummaryLength": {
           "type": "number",
@@ -90,6 +167,44 @@
           "type": "boolean",
           "default": false,
           "description": "Ignore whitespace-only changes when computing blame (passes -w to git blame)."
+        },
+        "cursorblame.mode": {
+          "type": "string",
+          "enum": ["hover", "always"],
+          "enumDescriptions": [
+            "Clear and redebounce the annotation on every selection change.",
+            "Keep the annotation visible while typing on the same line; only update when the cursor moves to a different line."
+          ],
+          "default": "always",
+          "description": "Controls when the blame annotation refreshes."
+        },
+        "cursorblame.followMerges": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pass --first-parent to git blame to skip merge commits when assigning blame."
+        },
+        "cursorblame.ageFadeMaxDays": {
+          "type": "number",
+          "default": 365,
+          "minimum": 7,
+          "maximum": 3650,
+          "description": "Commits older than this many days are shown at minimum opacity (0.35). Set to 0 to disable age-based fading."
+        },
+        "cursorblame.gutterMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show compact blame annotations (initials + SHA) on every line simultaneously."
+        },
+        "cursorblame.authorColors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Colorise blame annotations per-author using a stable hash-derived palette colour."
+        },
+        "cursorblame.ignoredAuthors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "List of author names or email addresses to skip in blame output. Partial matches are supported (e.g. `\"bot@\"` matches `ci-bot@company.com`)."
         }
       }
     }
@@ -99,12 +214,23 @@
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit",
+    "test": "TS_NODE_PROJECT=tsconfig.test.json mocha",
+    "test:integration": "vscode-test",
+    "coverage": "TS_NODE_PROJECT=tsconfig.test.json c8 --reporter=text --reporter=lcov --lines 80 --functions 80 --branches 60 mocha",
     "package": "npx @vscode/vsce package"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.6",
     "@types/node": "^18.0.0",
+    "@types/sinon": "^17.0.3",
     "@types/vscode": "^1.75.0",
+    "@vscode/test-cli": "^0.0.9",
+    "@vscode/test-electron": "^2.3.9",
+    "c8": "^9.1.0",
     "esbuild": "^0.20.0",
+    "mocha": "^10.3.0",
+    "sinon": "^17.0.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.0"
   }
 }

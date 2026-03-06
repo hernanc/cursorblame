@@ -1,0 +1,12 @@
+0000000000000000000000000000000000000000 1 1 1
+author Not Committed Yet
+author-mail <not.committed.yet>
+author-time 1709640000
+author-tz +0000
+committer Not Committed Yet
+committer-mail <not.committed.yet>
+committer-time 1709640000
+committer-tz +0000
+summary Version of src/index.js
+filename src/index.js
+	const x = 1;

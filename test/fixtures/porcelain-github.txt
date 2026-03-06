@@ -1,0 +1,38 @@
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1 1 1
+author Sam Horton
+author-mail <sam@example.com>
+author-time 1709596809
+author-tz +0000
+committer Sam Horton
+committer-mail <sam@example.com>
+committer-time 1709596809
+committer-tz +0000
+summary fix: do not blindly update state
+previous cccccccccccccccccccccccccccccccccccccccc src/index.js
+filename src/index.js
+	const triggerRect = useRect(triggerRef, isVisible);
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 2 2
+author Sam Horton
+author-mail <sam@example.com>
+author-time 1709596809
+author-tz +0000
+committer Sam Horton
+committer-mail <sam@example.com>
+committer-time 1709596809
+committer-tz +0000
+summary fix: do not blindly update state
+previous cccccccccccccccccccccccccccccccccccccccc src/index.js
+filename src/index.js
+	return <div />;
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 3 3 1
+author Jane Doe
+author-mail <jane@example.com>
+author-time 1701388800
+author-tz +0000
+committer Jane Doe
+committer-mail <jane@example.com>
+committer-time 1701388800
+committer-tz +0000
+summary feat: initial component
+filename src/index.js
+	export default App;

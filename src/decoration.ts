@@ -9,11 +9,21 @@
  * We expose the commit URL through the decoration's `hoverMessage` as a
  * Markdown command-link, so hovering over the annotation shows a tooltip
  * with a clickable "Open commit on remote" link.
+ *
+ * Pure formatting helpers are in decorationHelpers.ts (no vscode dependency)
+ * so they can be unit-tested without an extension host.
  */
 
 import * as vscode from "vscode";
 import type { BlameInfo, BlameConfig, RemoteInfo } from "./types";
 import { commitUrl } from "./remoteUrl";
+import {
+  formatAnnotation,
+  formatGutterLabel,
+  escapeMd,
+  ageToOpacity,
+  authorColor,
+} from "./decorationHelpers";
 
 /** Command ID used to open a commit on the remote. */
 export const OPEN_COMMIT_COMMAND = "cursorblame.openCommit";
@@ -21,8 +31,12 @@ export const OPEN_COMMIT_COMMAND = "cursorblame.openCommit";
 /** Track which editor currently has a decoration so clearDecoration() can target it. */
 let activeEditor: vscode.TextEditor | undefined;
 
+// ---------------------------------------------------------------------------
+// Decoration type factory
+// ---------------------------------------------------------------------------
+
 /**
- * Create (or recreate) the decoration type using current config.
+ * Create (or recreate) the inline decoration type using current config.
  * Must be disposed before recreating to avoid resource leaks.
  */
 export function createDecorationType(
@@ -30,10 +44,6 @@ export function createDecorationType(
 ): vscode.TextEditorDecorationType {
   const fg = config.foregroundColor?.trim();
 
-  // Resolve the color value:
-  //  - If the user set "theme:<id>", use a ThemeColor
-  //  - If the user set a CSS value (e.g. "#888" or "rgba(...)"), use it directly
-  //  - Otherwise fall back to the editor's codeLens foreground (muted, theme-aware)
   let color: string | vscode.ThemeColor;
   if (fg && fg.startsWith("theme:")) {
     color = new vscode.ThemeColor(fg.slice(6));
@@ -54,76 +64,37 @@ export function createDecorationType(
 }
 
 /**
- * Format a Unix timestamp into a human-readable relative time string.
- * e.g. "3 months ago", "2 days ago", "just now"
+ * Create the gutter decoration type (v0.3).
+ * This is a second decoration type rendered on every line when gutterMode is on.
+ * Must be disposed separately from the inline decoration type.
  */
-function timeAgo(unixTs: number): string {
-  const seconds = Math.floor(Date.now() / 1000) - unixTs;
-  if (seconds < 60) {
-    return "just now";
-  }
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
-  }
-  const days = Math.floor(hours / 24);
-  if (days < 30) {
-    return `${days} day${days !== 1 ? "s" : ""} ago`;
-  }
-  const months = Math.floor(days / 30);
-  if (months < 12) {
-    return `${months} month${months !== 1 ? "s" : ""} ago`;
-  }
-  const years = Math.floor(months / 12);
-  return `${years} year${years !== 1 ? "s" : ""} ago`;
-}
-
-/** Escape a string for safe use inside Markdown. */
-function escapeMd(s: string): string {
-  return s.replace(/[\\`*_{}[\]()#+\-.!]/g, "\\$&");
-}
-
-/**
- * Build the annotation string from the format template and blame info.
- * Tokens: {author}, {timeAgo}, {date}, {summary}, {sha}, {shortSha}
- */
-function formatAnnotation(info: BlameInfo, config: BlameConfig): string {
-  const maxLen = Math.max(10, config.maxSummaryLength);
-  const summary =
-    info.summary.length > maxLen
-      ? info.summary.slice(0, maxLen - 1) + "…"
-      : info.summary;
-
-  const date = new Date(info.authorTime * 1000).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+export function createGutterDecorationType(): vscode.TextEditorDecorationType {
+  return vscode.window.createTextEditorDecorationType({
+    before: {
+      margin: "0 0.5em 0 0",
+      color: new vscode.ThemeColor("editorCodeLens.foreground"),
+      fontStyle: "normal",
+    },
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
   });
-
-  return config.format
-    .replace("{author}", info.author)
-    .replace("{timeAgo}", timeAgo(info.authorTime))
-    .replace("{date}", date)
-    .replace("{summary}", summary)
-    .replace("{sha}", info.sha)
-    .replace("{shortSha}", info.shortSha);
 }
+
+// ---------------------------------------------------------------------------
+// Hover message builder
+// ---------------------------------------------------------------------------
 
 /**
  * Build a MarkdownString for the decoration hoverMessage.
  * Includes a clickable command-link to open the commit on the remote.
  *
- * @param info        Blame data for the line.
- * @param remoteInfo  Remote info (may be null if no remote detected).
- * @param sha         The commit SHA (validated before use).
+ * @param info            Blame data for the line.
+ * @param remoteInfo      Remote info (may be null if no remote detected).
+ * @param fullBody        Optional full commit message body (v0.4).
  */
 function buildHoverMessage(
   info: BlameInfo,
-  remoteInfo: RemoteInfo | null
+  remoteInfo: RemoteInfo | null,
+  fullBody?: string | null
 ): vscode.MarkdownString {
   const md = new vscode.MarkdownString("", true);
   md.isTrusted = true; // Required for command:// links
@@ -135,21 +106,66 @@ function buildHoverMessage(
   const date = new Date(info.authorTime * 1000).toLocaleString();
   md.appendMarkdown(`*${escapeMd(info.author)}* · ${escapeMd(date)}\n\n`);
 
+  // Full commit body (v0.4) — show if different from summary
+  if (fullBody && fullBody !== info.summary && !info.isUncommitted) {
+    const firstLine = fullBody.split("\n")[0];
+    const bodyRest = fullBody.slice(firstLine.length).trim();
+    if (bodyRest) {
+      md.appendMarkdown(`---\n\n${escapeMd(bodyRest)}\n\n`);
+    }
+  }
+
   if (!info.isUncommitted) {
     const url = remoteInfo ? commitUrl(remoteInfo, info.sha) : null;
     if (url) {
-      // Encode the URL as JSON so the command handler receives it safely.
       const encodedArgs = encodeURIComponent(JSON.stringify([url]));
       md.appendMarkdown(
         `[$(link-external) Open commit on remote](command:${OPEN_COMMIT_COMMAND}?${encodedArgs})`
       );
     } else {
-      // Fallback: show the SHA so users can look it up manually.
       md.appendMarkdown(`SHA: \`${escapeMd(info.sha)}\``);
     }
   }
 
   return md;
+}
+
+// ---------------------------------------------------------------------------
+// Apply / clear inline decoration
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the decoration colour, factoring in age-based opacity (v0.3)
+ * and per-author colour coding (v0.3).
+ */
+function resolveColor(
+  info: BlameInfo,
+  config: BlameConfig
+): string | vscode.ThemeColor {
+  if (config.authorColors && !info.isUncommitted) {
+    const base = authorColor(info.authorEmail || info.author);
+    const opacity = config.ageFadeMaxDays > 0
+      ? ageToOpacity(info.authorTime, config.ageFadeMaxDays)
+      : 1.0;
+    // Convert hex to rgba for opacity support
+    const r = parseInt(base.slice(1, 3), 16);
+    const g = parseInt(base.slice(3, 5), 16);
+    const b = parseInt(base.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${opacity.toFixed(2)})`;
+  }
+
+  if (config.ageFadeMaxDays > 0 && !info.isUncommitted) {
+    const opacity = ageToOpacity(info.authorTime, config.ageFadeMaxDays);
+    return `rgba(128,128,128,${opacity.toFixed(2)})`;
+  }
+
+  const fg = config.foregroundColor?.trim();
+  if (fg && fg.startsWith("theme:")) {
+    return new vscode.ThemeColor(fg.slice(6));
+  } else if (fg) {
+    return fg;
+  }
+  return new vscode.ThemeColor("editorCodeLens.foreground");
 }
 
 /**
@@ -161,6 +177,7 @@ function buildHoverMessage(
  * @param remoteInfo  Remote info (may be null).
  * @param config      Current extension config.
  * @param type        The active TextEditorDecorationType.
+ * @param fullBody    Optional full commit body for hover (v0.4).
  */
 export function applyDecoration(
   editor: vscode.TextEditor,
@@ -168,15 +185,14 @@ export function applyDecoration(
   info: BlameInfo,
   remoteInfo: RemoteInfo | null,
   config: BlameConfig,
-  type: vscode.TextEditorDecorationType
+  type: vscode.TextEditorDecorationType,
+  fullBody?: string | null
 ): void {
   const annotation = formatAnnotation(info, config);
-  const hoverMessage = buildHoverMessage(info, remoteInfo);
+  const hoverMessage = buildHoverMessage(info, remoteInfo, fullBody);
+  const color = resolveColor(info, config);
 
   const line = editor.document.lineAt(lineNumber);
-  // Attach the decoration to a zero-width range at the very end of the line
-  // content (before any trailing newline).  The `after` CSS pseudo-element
-  // then appends the text visually without touching the document.
   const range = new vscode.Range(
     lineNumber,
     line.range.end.character,
@@ -190,12 +206,52 @@ export function applyDecoration(
     renderOptions: {
       after: {
         contentText: annotation,
+        color,
       },
     },
   };
 
   editor.setDecorations(type, [options]);
   activeEditor = editor;
+}
+
+/**
+ * Apply gutter decorations to ALL lines of the file (v0.3 gutterMode).
+ *
+ * @param editor      The text editor to decorate.
+ * @param fileBlame   The complete blame map for this file.
+ * @param gutterType  The gutter TextEditorDecorationType.
+ */
+export function applyGutterDecorations(
+  editor: vscode.TextEditor,
+  fileBlame: Map<number, BlameInfo>,
+  gutterType: vscode.TextEditorDecorationType
+): void {
+  const decorations: vscode.DecorationOptions[] = [];
+
+  for (const [gitLine, info] of fileBlame) {
+    const lineNumber = gitLine - 1; // convert to 0-based
+    if (lineNumber < 0 || lineNumber >= editor.document.lineCount) {
+      continue;
+    }
+    const line = editor.document.lineAt(lineNumber);
+    const range = new vscode.Range(
+      lineNumber,
+      line.range.start.character,
+      lineNumber,
+      line.range.start.character
+    );
+    decorations.push({
+      range,
+      renderOptions: {
+        before: {
+          contentText: formatGutterLabel(info),
+        },
+      },
+    });
+  }
+
+  editor.setDecorations(gutterType, decorations);
 }
 
 /**

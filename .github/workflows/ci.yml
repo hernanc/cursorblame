@@ -7,8 +7,9 @@ on:
     branches: [main, master]
 
 jobs:
-  build:
-    name: Type-check & build
+  # ── Unit tests + type-check + build ───────────────────────────────────────
+  unit:
+    name: Type-check, Unit tests & Coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -27,6 +28,25 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm test
+
+      - name: Coverage gate (≥ 80% lines & functions, ≥ 60% branches)
+        run: npm run coverage
+
+      - name: Security check — no exec() or shell:true in source
+        run: |
+          # Fail if any source file uses exec() or shell: true
+          if grep -rn --include="*.ts" "exec(" src/ | grep -v "execFile"; then
+            echo "SECURITY VIOLATION: found exec() call in src/ — use execFile() instead" >&2
+            exit 1
+          fi
+          if grep -rn --include="*.ts" "shell: true" src/; then
+            echo "SECURITY VIOLATION: found shell:true in src/" >&2
+            exit 1
+          fi
+          echo "Security check passed: no exec() or shell:true found"
+
       - name: Production build
         run: npm run vscode:prepublish
 
@@ -36,3 +56,32 @@ jobs:
           name: dist
           path: dist/extension.js
           retention-days: 7
+
+  # ── Integration tests (real VSCode host) ──────────────────────────────────
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build (required for extension activation)
+        run: npm run vscode:prepublish
+
+      - name: Install Xvfb
+        run: sudo apt-get install -y xvfb
+
+      - name: Run integration tests
+        run: xvfb-run -a npm run test:integration
+        env:
+          DISPLAY: ":99.0"
