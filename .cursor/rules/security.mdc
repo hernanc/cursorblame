@@ -1,0 +1,69 @@
+---
+alwaysApply: true
+---
+
+# Security Rules — MUST follow at all times
+
+CursorBlame executes `git` as a child process and opens URLs in the user's browser.
+These are attack surfaces. The following rules are **non-negotiable**.
+
+## 1. No shell execution — use `execFile()` only
+
+- ALL git invocations MUST use Node's `child_process.execFile()` with an **explicit argument array**.
+- NEVER use `exec()`, `execSync()`, template-string command assembly, or `shell: true`.
+- This prevents command injection through file paths, branch names, or remote URLs.
+
+```typescript
+// ✅ CORRECT — arguments are never interpolated into a shell string
+execFile("git", ["blame", "--line-porcelain", "--", filePath], { cwd }, callback);
+
+// ❌ FORBIDDEN — shell interpolation allows injection
+exec(`git blame --line-porcelain -- "${filePath}"`, callback);
+```
+
+## 2. SHA validation before URL embedding
+
+- Commit SHAs MUST be validated with `/^[0-9a-f]{40}$/` before being embedded in any URL.
+- Use the existing `isValidSha()` helper in [gitBlame.ts](mdc:src/gitBlame.ts).
+- NEVER concatenate an unvalidated SHA into a URL string.
+
+## 3. HTTPS-only URLs
+
+- `remoteUrl.ts` normalises SSH and `git://` remotes to `https://` before returning them.
+- ALL URLs returned from `commitUrl()` or `buildCommitUrl()` MUST use the `https://` scheme.
+- The `isSafeUrl()` guard in [extension.ts](mdc:src/extension.ts) MUST be called before passing any URL to `vscode.env.openExternal()`.
+- NEVER open `http://`, `file://`, `javascript:`, or any other scheme.
+
+## 4. `--` separator in git commands
+
+- When passing file paths to git commands, always use `"--"` before the path to prevent path-as-option injection (e.g. a file named `--output`).
+
+## 5. Workspace trust
+
+- The extension MUST remain disabled in untrusted workspaces.
+- The `activate()` function checks `vscode.workspace.isTrusted` and defers `doActivate()` until trust is granted.
+- NEVER bypass or weaken this check.
+
+## 6. No secrets or credentials
+
+- Do NOT store, log, or transmit authentication tokens, passwords, or API keys.
+- The extension is read-only — it only reads git history; it never writes or pushes.
+
+## 7. Input sanitisation in Markdown
+
+- All user-controlled strings rendered in `MarkdownString` (hover tooltips) MUST be escaped with `escapeMd()` in [decoration.ts](mdc:src/decoration.ts).
+- This prevents Markdown-injection that could produce misleading command-links.
+
+## 8. Command argument validation
+
+- When the `openCommit` command receives arguments via URI-encoded command-links, they are JSON-parsed and validated.
+- NEVER trust command arguments blindly — always type-check and validate before use.
+
+## Summary checklist for every PR
+
+- [ ] No `exec()` or `shell: true` anywhere in the codebase
+- [ ] SHAs validated before URL construction
+- [ ] Only `https://` URLs returned or opened
+- [ ] `--` separates options from paths in all git commands
+- [ ] Workspace trust gate intact
+- [ ] User strings escaped in Markdown output

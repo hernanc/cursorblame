@@ -1,0 +1,68 @@
+---
+alwaysApply: true
+---
+
+# CursorBlame — Project Overview & Architecture
+
+CursorBlame is a VS Code / Cursor **extension** that displays inline git blame annotations on the active cursor line.
+Hovering reveals a tooltip with commit details and a clickable link to open the commit on the remote host (GitHub, GitLab, Bitbucket, Azure DevOps).
+
+## Repository layout
+
+```
+src/
+  extension.ts    – Entry point: activation lifecycle, event wiring, commands, workspace trust
+  gitBlame.ts     – git blame execution (execFile) and --line-porcelain parser
+  blameCache.ts   – Per-file LRU cache keyed by filePath::gitHead, invalidated on save / HEAD change
+  decoration.ts   – TextEditorDecorationType "after" overlay, hover message with command-link
+  remoteUrl.ts    – Remote provider detection, SSH/git→https normalisation, commit URL construction
+  types.ts        – Shared TypeScript interfaces (BlameInfo, FileBlameMap, RemoteInfo, BlameConfig, RemoteProvider)
+images/
+  icon.png        – Extension marketplace icon (128×128)
+dist/
+  extension.js    – Production bundle (esbuild output, do NOT edit)
+esbuild.js       – Build script (CommonJS, bundles src/ → dist/extension.js, externals: vscode)
+package.json     – Extension manifest: commands, keybindings, contributes.configuration schema
+tsconfig.json    – Strict TypeScript config (ES2020, CommonJS)
+```
+
+## Key technical decisions
+
+- **Build tool**: esbuild (fast bundling, CJS output, `vscode` externalised).
+- **Target**: Node 16 / ES2020, VS Code engine ≥ 1.75.
+- **No test framework yet** — changes are verified with `npm run typecheck` and manual F5 testing.
+- **Activation**: `onStartupFinished` — the extension activates lazily after the editor is ready.
+- **Workspace trust**: the extension is disabled in untrusted workspaces and only activates once trust is granted.
+
+## Development workflow
+
+| Command                     | Purpose                                 |
+|-----------------------------|-----------------------------------------|
+| `npm run watch`             | Incremental dev build (esbuild --watch) |
+| `npm run build`             | One-shot dev build with source maps     |
+| `npm run typecheck`         | Strict `tsc --noEmit`                   |
+| `npm run vscode:prepublish` | Production build (minified, no maps)    |
+| `npm run package`           | Create `.vsix` via `vsce`               |
+
+## Commit messages
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <summary>
+```
+
+Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `chore`, `ci`.
+Scope matches a module name: `extension`, `gitBlame`, `blameCache`, `decoration`, `remoteUrl`, `types`.
+
+## Module dependency graph (import direction →)
+
+```
+extension.ts → blameCache.ts → types.ts
+extension.ts → decoration.ts → remoteUrl.ts → types.ts
+extension.ts → gitBlame.ts   → types.ts
+extension.ts → remoteUrl.ts  → gitBlame.ts (isValidSha only)
+```
+
+`types.ts` has zero imports — it is the leaf of the dependency tree.
+Do NOT introduce circular dependencies.

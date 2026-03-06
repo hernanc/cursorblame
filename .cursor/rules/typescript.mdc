@@ -1,0 +1,75 @@
+---
+globs: "*.ts"
+---
+
+# TypeScript Coding Standards — CursorBlame
+
+## Strict mode
+
+The project uses `"strict": true` in [tsconfig.json](mdc:tsconfig.json). All code MUST compile cleanly under strict mode:
+- No implicit `any`.
+- Strict null checks (`null` and `undefined` must be handled explicitly).
+- No unused locals or parameters (suppress intentional ones with `void varName`).
+
+Always run `npm run typecheck` (`tsc --noEmit`) before considering a change complete.
+
+## Type-first design
+
+- Export **interfaces and types** from [types.ts](mdc:src/types.ts). Keep that file as the single source of truth for shared data structures.
+- Prefer `type` imports (`import type { ... }`) when importing only types — this produces zero runtime code.
+- Avoid `any`. Use `unknown` with type guards when the type is genuinely not known.
+- Function return types SHOULD be annotated explicitly for all exported functions.
+
+## VS Code Extension API conventions
+
+- The extension entry point is [extension.ts](mdc:src/extension.ts) which exports `activate()` and `deactivate()`.
+- All event listeners, watchers, and commands MUST be pushed to `context.subscriptions` so they are auto-disposed.
+- Use `vscode.TextEditorDecorationType` for visual overlays — never manipulate document text to show annotations.
+- Debounce high-frequency events (selection change) to avoid performance degradation.
+- Respect `vscode.workspace.isTrusted` — never run git commands in untrusted workspaces.
+
+## Module boundaries
+
+Each source file has a single clear responsibility:
+
+| File | Responsibility | May import from |
+|------|---------------|-----------------|
+| `types.ts` | Shared interfaces/types | (none) |
+| `gitBlame.ts` | Execute git, parse porcelain | `types` |
+| `blameCache.ts` | LRU cache for blame data | `types` |
+| `remoteUrl.ts` | Remote detection, URL building | `types`, `gitBlame` (isValidSha) |
+| `decoration.ts` | Decoration rendering | `types`, `remoteUrl` (commitUrl) |
+| `extension.ts` | Lifecycle, events, commands | all modules |
+
+- Do NOT introduce circular dependencies.
+- Do NOT import `vscode` in `types.ts`, `gitBlame.ts`, or `blameCache.ts` — they must remain VS Code-agnostic for testability.
+- Only `extension.ts` and `decoration.ts` may import `vscode`.
+
+## Error handling
+
+- Git operations may fail (untracked files, detached HEAD, no repo). Always handle errors gracefully — return `null` and clear the decoration.
+- NEVER show error dialogs for expected failures (e.g. file not in git). Use `console.warn` or silent suppression.
+- Only use `vscode.window.showWarningMessage` for user-initiated actions that fail (e.g. "Open commit on remote" with no remote).
+
+## Async patterns
+
+- Use `async/await` over raw Promises for readability.
+- Wrap `execFile` callbacks in Promises (see `runGit()` in [gitBlame.ts](mdc:src/gitBlame.ts)).
+- Catch and suppress errors in fire-and-forget calls: `.catch(() => {})`.
+
+## Style
+
+- Use `const` by default; `let` only when reassignment is necessary. Never use `var`.
+- Prefer `===` over `==`.
+- Use template literals for string interpolation, but NEVER for constructing shell commands (see security rules).
+- Named exports only (no default exports).
+- Keep functions small and focused — extract helpers with descriptive names.
+- JSDoc every exported function. Internal helpers should have at least a one-liner comment.
+- Use `readonly` for class properties that should not be reassigned after construction.
+
+## Build
+
+- The build uses esbuild ([esbuild.js](mdc:esbuild.js)) to bundle all TypeScript into a single `dist/extension.js`.
+- `vscode` is declared as an external — it is provided by the host editor at runtime.
+- Target: Node 16 / CJS.
+- NEVER edit files in `dist/` directly — they are generated artifacts.

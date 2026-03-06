@@ -1,0 +1,62 @@
+---
+description: "VS Code extension development patterns and package.json manifest rules for CursorBlame"
+globs: "package.json,src/extension.ts"
+---
+
+# VS Code Extension Manifest & Lifecycle
+
+## package.json — Extension manifest rules
+
+The [package.json](mdc:package.json) serves as both the npm manifest and the VS Code extension manifest.
+
+### Commands
+
+- Every command MUST be registered in both `contributes.commands` (for discoverability) and programmatically via `vscode.commands.registerCommand` in [extension.ts](mdc:src/extension.ts).
+- Command IDs follow the pattern: `cursorblame.<verb>` (e.g. `cursorblame.openCommit`, `cursorblame.toggle`).
+- All registered commands MUST be pushed to `context.subscriptions`.
+
+### Configuration
+
+- New settings MUST be declared under `contributes.configuration.properties` with proper `type`, `default`, `description`, and (when applicable) `minimum`/`maximum`.
+- The setting key pattern is: `cursorblame.<camelCaseName>`.
+- Every declared setting MUST be read in `readConfig()` in [extension.ts](mdc:src/extension.ts) and added to the `BlameConfig` interface in [types.ts](mdc:src/types.ts).
+- Adding a setting requires updating: `package.json` → `types.ts` → `extension.ts` (readConfig) → consuming module.
+
+### Activation
+
+- The extension uses `"activationEvents": ["onStartupFinished"]` for lazy activation.
+- Do NOT add `*` activation — it defeats lazy loading.
+- The `"main"` field points to `"./dist/extension.js"` (the esbuild bundle).
+
+### Engine version
+
+- Minimum VS Code version is `1.75.0` (specified in `engines.vscode`).
+- Do NOT use APIs introduced after 1.75 without bumping this field.
+
+## Extension lifecycle
+
+1. **Activation**: `activate()` checks workspace trust → delegates to `doActivate()`.
+2. **Runtime**: event listeners (selection change, editor change, save, config change, HEAD watcher) drive blame fetching and decoration.
+3. **Deactivation**: `deactivate()` is a no-op; cleanup happens via `context.subscriptions` disposables.
+
+### Resource management
+
+- Every `TextEditorDecorationType`, `FileSystemWatcher`, command registration, and event listener MUST be disposed.
+- Push disposables to `context.subscriptions` or manually dispose in the cleanup block.
+- When recreating a decoration type (e.g. on config change), always `dispose()` the old one first to prevent resource leaks.
+
+### Cache invalidation strategy
+
+- **File save** → invalidate that file's blame cache entry.
+- **HEAD change** (detected by `.git/HEAD` file watcher) → clear entire blame cache and remote cache.
+- **HEAD SHA mismatch** (per-repo tracking) → invalidate repo-level entries.
+
+## Adding a new feature — checklist
+
+1. Define any new types/interfaces in `types.ts`.
+2. Implement logic in the appropriate module (see module boundary table in TypeScript rules).
+3. If new commands or settings are needed, update `package.json`, `types.ts`, and `extension.ts`.
+4. Ensure all disposables are tracked in `context.subscriptions`.
+5. Run `npm run typecheck` and test manually with F5.
+6. Update `README.md` if user-facing behaviour changed.
+7. Follow Conventional Commits for the commit message.
