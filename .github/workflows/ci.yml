@@ -36,16 +36,22 @@ jobs:
 
       - name: Security check — no exec() or shell:true in source
         run: |
-          # Fail if any source file uses exec() or shell: true
-          if grep -rn --include="*.ts" "exec(" src/ | grep -v "execFile"; then
+          # Fail if any source file uses exec() (but not execFile) in actual code.
+          # Filter out comment lines (lines whose content starts with // or *).
+          if grep -rn --include="*.ts" "exec(" src/ \
+               | grep -v "execFile" \
+               | grep -vE ':[0-9]+:\s*(//|\*)'; then
             echo "SECURITY VIOLATION: found exec() call in src/ — use execFile() instead" >&2
             exit 1
           fi
-          if grep -rn --include="*.ts" "shell: true" src/; then
-            echo "SECURITY VIOLATION: found shell:true in src/" >&2
+          # Fail if any source file passes shell: true to a child-process call.
+          # Exclude comment lines so doc-strings that mention the rule don't trip this.
+          if grep -rn --include="*.ts" "shell: true" src/ \
+               | grep -vE ':[0-9]+:\s*(//|\*)'; then
+            echo "SECURITY VIOLATION: found shell:true in src/ — never use shell: true" >&2
             exit 1
           fi
-          echo "Security check passed: no exec() or shell:true found"
+          echo "Security check passed: no exec() or shell:true found in non-comment code"
 
       - name: Production build
         run: npm run vscode:prepublish

@@ -3,7 +3,7 @@
  *
  * Security:
  *  - ALL git invocations use execFile() with an explicit argument array.
- *    shell: true is never used — no shell string interpolation.
+ *    The shell option is never enabled — no shell string interpolation.
  *  - File paths are always placed after `--` to prevent path-as-option injection.
  *  - SHAs are validated with isValidSha() before use in any URL.
  */

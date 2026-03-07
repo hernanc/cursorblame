@@ -59,9 +59,15 @@ exec(`git blame --line-porcelain -- "${filePath}"`, callback);
 - When the `openCommit` command receives arguments via URI-encoded command-links, they are JSON-parsed and validated.
 - NEVER trust command arguments blindly — always type-check and validate before use.
 
+## 9. Security comments must not echo forbidden patterns
+
+- When writing comments or doc-strings that explain why `exec()` or `shell: true` are forbidden, **do NOT reproduce the literal strings** `exec(` or `shell: true` in the comment text.
+- Use paraphrases instead, e.g. *"the shell option is never enabled"* rather than `shell: true is never used`.
+- Reason: the CI security grep scans all `.ts` source lines for these patterns. Even though the grep filters out comment lines (lines whose content starts with `//` or `*`), writing the literal forbidden string in comments is fragile and confusing.
+
 ## Summary checklist for every PR
 
-- [ ] No `exec()` or `shell: true` anywhere in the codebase
+- [ ] No `exec()` or `shell: true` anywhere in **code** (comments may not echo these literals either — see rule 9)
 - [ ] SHAs validated before URL construction
 - [ ] Only `https://` URLs returned or opened
 - [ ] `--` separates options from paths in all git commands
