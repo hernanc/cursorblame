@@ -1,5 +1,9 @@
 # CursorBlame
 
+[![Latest Release](https://img.shields.io/github/v/release/hernanc/cursorblame?label=download&color=blue)](https://github.com/hernanc/cursorblame/releases/latest)
+[![CI](https://github.com/hernanc/cursorblame/actions/workflows/ci.yml/badge.svg)](https://github.com/hernanc/cursorblame/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 > Inline git blame — exactly when you need it, invisible when you don't.
 
 CursorBlame shows commit authorship directly in the editor as you move through your code. No permanent noise, no cluttered gutter — the annotation appears on the current line in subtle italic grey and disappears the moment you move away.
@@ -42,7 +46,7 @@ CursorBlame is distributed as a `.vsix` file via GitHub Releases — no Marketpl
 
 ### Step 1 — Download
 
-Go to the [Releases page](https://github.com/hernanc/cursorblame/releases) and download the `.vsix` file from the latest release (e.g. `cursorblame-0.1.0.vsix`).
+Go to the [Releases page](https://github.com/hernanc/cursorblame/releases/latest) and download the `.vsix` file from the latest release (e.g. `cursorblame-1.0.0.vsix`).
 
 ### Step 2 — Install
 
@@ -50,10 +54,10 @@ Go to the [Releases page](https://github.com/hernanc/cursorblame/releases) and d
 
 ```bash
 # VSCode
-code --install-extension cursorblame-0.1.0.vsix
+code --install-extension cursorblame-1.0.0.vsix
 
 # Cursor
-cursor --install-extension cursorblame-0.1.0.vsix
+cursor --install-extension cursorblame-1.0.0.vsix
 ```
 
 **Option B — GUI**
