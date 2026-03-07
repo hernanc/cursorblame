@@ -2,7 +2,7 @@
   "name": "cursorblame",
   "displayName": "CursorBlame",
   "description": "Inline git blame on the active cursor line — hover to reveal, click to open the commit on your remote.",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "publisher": "HernanC",
   "license": "MIT",
   "homepage": "https://github.com/hernanc/cursorblame#readme",

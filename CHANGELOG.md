@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0] — 2026-03-07
+
+### Changed
+
+- Version bumped to 1.0.0 — all planned roadmap features are complete and the extension has been verified working in Cursor and VS Code
+- CI security grep now correctly excludes comment lines, preventing false positives from explanatory doc-strings
+
+### Fixed
+
+- Security grep in `ci.yml` would match the literal pattern in source comments; grep now filters out `//` and `*` comment lines before failing
+
+---
+
 ## [0.2.0] — 2026-03-06
 
 ### Added
@@ -60,5 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workspace trust support — disabled automatically in untrusted workspaces
 - Compatible with VSCode ≥ 1.75.0 and Cursor
 
+[1.0.0]: https://github.com/hernanc/cursorblame/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/hernanc/cursorblame/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hernanc/cursorblame/releases/tag/v0.1.0
