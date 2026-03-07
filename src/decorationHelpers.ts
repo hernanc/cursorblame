@@ -178,6 +178,25 @@ export function formatGutterLabel(info: BlameInfo): string {
 }
 
 // ---------------------------------------------------------------------------
+// Gutter recency filter (v1.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if a blame line is "recent" enough to show in gutter-recent mode.
+ *
+ * @param authorTime     Unix timestamp of the commit.
+ * @param recentDays     Maximum age in days to be considered recent. 0 = always true.
+ */
+export function isRecentLine(authorTime: number, recentDays: number): boolean {
+  if (recentDays <= 0) {
+    return true;
+  }
+  const ageSeconds = Date.now() / 1000 - authorTime;
+  const ageDays = ageSeconds / 86400;
+  return ageDays <= recentDays;
+}
+
+// ---------------------------------------------------------------------------
 // Annotation theme presets (v1.0)
 // ---------------------------------------------------------------------------
 

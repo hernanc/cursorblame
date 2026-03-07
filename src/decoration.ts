@@ -23,6 +23,7 @@ import {
   escapeMd,
   ageToOpacity,
   authorColor,
+  isRecentLine,
 } from "./decorationHelpers";
 
 /** Command ID used to open a commit on the remote. */
@@ -216,22 +217,29 @@ export function applyDecoration(
 }
 
 /**
- * Apply gutter decorations to ALL lines of the file (v0.3 gutterMode).
+ * Apply gutter decorations to lines of the file (v0.3 gutterMode).
  *
- * @param editor      The text editor to decorate.
- * @param fileBlame   The complete blame map for this file.
- * @param gutterType  The gutter TextEditorDecorationType.
+ * @param editor           The text editor to decorate.
+ * @param fileBlame        The complete blame map for this file.
+ * @param gutterType       The gutter TextEditorDecorationType.
+ * @param gutterRecentDays If > 0, only annotate lines changed within this many
+ *                         days (v1.1 recent-only filter). 0 = annotate all lines.
  */
 export function applyGutterDecorations(
   editor: vscode.TextEditor,
   fileBlame: Map<number, BlameInfo>,
-  gutterType: vscode.TextEditorDecorationType
+  gutterType: vscode.TextEditorDecorationType,
+  gutterRecentDays = 0
 ): void {
   const decorations: vscode.DecorationOptions[] = [];
 
   for (const [gitLine, info] of fileBlame) {
     const lineNumber = gitLine - 1; // convert to 0-based
     if (lineNumber < 0 || lineNumber >= editor.document.lineCount) {
+      continue;
+    }
+    // v1.1: skip lines older than the recency window (uncommitted always shown)
+    if (!info.isUncommitted && !isRecentLine(info.authorTime, gutterRecentDays)) {
       continue;
     }
     const line = editor.document.lineAt(lineNumber);

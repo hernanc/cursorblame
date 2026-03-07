@@ -21,6 +21,7 @@ import {
   formatGutterLabel,
   THEME_PRESETS,
   resolveThemePreset,
+  isRecentLine,
 } from "../../src/decorationHelpers";
 import type { BlameInfo, BlameConfig } from "../../src/types";
 
@@ -526,5 +527,59 @@ describe("formatFileStats", () => {
     assert.ok(result.length > 0);
     assert.ok(result.includes("index.ts"));
     assert.ok(result.includes("Alice"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isRecentLine (v1.1)
+// ---------------------------------------------------------------------------
+
+describe("isRecentLine", () => {
+  let clock: sinon.SinonFakeTimers;
+
+  beforeEach(() => {
+    // Fix "now" to a known timestamp so tests are deterministic
+    clock = sinon.useFakeTimers({ now: new Date("2026-01-15T12:00:00Z").getTime() });
+  });
+
+  afterEach(() => {
+    clock.restore();
+  });
+
+  const nowSeconds = () => Math.floor(new Date("2026-01-15T12:00:00Z").getTime() / 1000);
+
+  it("returns true when recentDays is 0 (disabled), regardless of age", () => {
+    const veryOld = nowSeconds() - 365 * 86400;
+    assert.strictEqual(isRecentLine(veryOld, 0), true);
+  });
+
+  it("returns true for a commit made today", () => {
+    const today = nowSeconds() - 60; // 1 minute ago
+    assert.strictEqual(isRecentLine(today, 30), true);
+  });
+
+  it("returns true for a commit exactly at the boundary", () => {
+    const exactly30DaysAgo = nowSeconds() - 30 * 86400;
+    assert.strictEqual(isRecentLine(exactly30DaysAgo, 30), true);
+  });
+
+  it("returns false for a commit one second past the boundary", () => {
+    const justOver30Days = nowSeconds() - 30 * 86400 - 1;
+    assert.strictEqual(isRecentLine(justOver30Days, 30), false);
+  });
+
+  it("returns false for a commit well outside the window", () => {
+    const oneYearAgo = nowSeconds() - 365 * 86400;
+    assert.strictEqual(isRecentLine(oneYearAgo, 7), false);
+  });
+
+  it("returns true for a commit within a 1-day window", () => {
+    const twelveHoursAgo = nowSeconds() - 12 * 3600;
+    assert.strictEqual(isRecentLine(twelveHoursAgo, 1), true);
+  });
+
+  it("handles a negative recentDays value like 0 (show all)", () => {
+    const veryOld = nowSeconds() - 365 * 86400;
+    assert.strictEqual(isRecentLine(veryOld, -1), true);
   });
 });

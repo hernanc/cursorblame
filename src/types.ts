@@ -72,6 +72,14 @@ export interface BlameConfig {
   // ── v0.5 ──────────────────────────────────────────────────────────────────
   /** Author names/emails whose blame entries are skipped. */
   ignoredAuthors: string[];
+  // ── v1.1 ──────────────────────────────────────────────────────────────────
+  /**
+   * When > 0, gutter mode only annotates lines changed within this many days.
+   * 0 means annotate all lines (original behaviour).
+   */
+  gutterRecentDays: number;
+  /** When false, hotspot file badges in the Explorer are disabled. */
+  hotspotEnabled: boolean;
 }
 
 /** Aggregated per-file authorship statistics (v0.5+). */

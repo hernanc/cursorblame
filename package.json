@@ -2,7 +2,7 @@
   "name": "cursorblame",
   "displayName": "CursorBlame",
   "description": "Inline git blame on the active cursor line — hover to reveal, click to open the commit on your remote.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "HernanC",
   "license": "MIT",
   "homepage": "https://github.com/hernanc/cursorblame#readme",
@@ -80,6 +80,10 @@
       {
         "command": "cursorblame.showDashboard",
         "title": "CursorBlame: Show Workspace Dashboard"
+      },
+      {
+        "command": "cursorblame.snooze",
+        "title": "CursorBlame: Snooze Annotations (30 min)"
       }
     ],
     "keybindings": [
@@ -105,6 +109,12 @@
         "command": "cursorblame.prevChange",
         "key": "alt+[",
         "mac": "alt+[",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "cursorblame.snooze",
+        "key": "alt+shift+z",
+        "mac": "alt+shift+z",
         "when": "editorTextFocus"
       }
     ],
@@ -205,6 +215,18 @@
           "items": { "type": "string" },
           "default": [],
           "markdownDescription": "List of author names or email addresses to skip in blame output. Partial matches are supported (e.g. `\"bot@\"` matches `ci-bot@company.com`)."
+        },
+        "cursorblame.gutterRecentDays": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 3650,
+          "markdownDescription": "When `cursorblame.gutterMode` is enabled, only show gutter annotations for lines changed within this many days. Set to `0` to annotate all lines regardless of age."
+        },
+        "cursorblame.hotspotEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show fire-badge hotspot decorations in the Explorer for files with high commit churn. Disable to remove the badges without affecting other features."
         }
       }
     }

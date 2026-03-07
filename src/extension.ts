@@ -78,6 +78,9 @@ function readConfig(): BlameConfig {
     authorColors: cfg.get<boolean>("authorColors", false),
     // v0.5
     ignoredAuthors: cfg.get<string[]>("ignoredAuthors", []),
+    // v1.1
+    gutterRecentDays: cfg.get<number>("gutterRecentDays", 0),
+    hotspotEnabled: cfg.get<boolean>("hotspotEnabled", true),
   };
 }
 
@@ -173,6 +176,14 @@ function doActivate(context: vscode.ExtensionContext): void {
   let currentSha: string | undefined;
   let currentRepoRoot: string | undefined;
   let currentFilePath: string | undefined;
+
+  // ── v1.1: Snooze state ───────────────────────────────────────────────────
+  /** Unix ms timestamp until which annotations are snoozed. 0 = not snoozed. */
+  let snoozedUntil = 0;
+
+  function isSnoozed(): boolean {
+    return Date.now() < snoozedUntil;
+  }
 
   // ── v0.2: Status bar item ────────────────────────────────────────────────
   const statusBar = vscode.window.createStatusBarItem(
@@ -511,13 +522,49 @@ function doActivate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // ── Command: snooze / unsnooze (v1.1) ────────────────────────────────────
+  const SNOOZE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("cursorblame.snooze", () => {
+      const editor = vscode.window.activeTextEditor;
+
+      if (isSnoozed()) {
+        // Toggle off: cancel the snooze
+        snoozedUntil = 0;
+        statusBar.text = "";
+        statusBar.hide();
+        vscode.window.showInformationMessage("CursorBlame: Snooze cancelled — annotations restored.");
+        // Immediately re-show blame for the active editor
+        if (editor) {
+          showBlameForEditor(editor).catch(() => {});
+        }
+      } else {
+        // Toggle on: snooze for 30 minutes
+        snoozedUntil = Date.now() + SNOOZE_DURATION_MS;
+        if (editor) {
+          clearDecoration(editor, decorationType);
+          clearGutterDecorations(editor);
+        }
+        lastAnnotatedLine = -1;
+        lastAnnotatedEditor = undefined;
+        currentSha = undefined;
+        statusBar.text = "$(bell-slash) CursorBlame snoozed";
+        statusBar.show();
+        vscode.window.showInformationMessage(
+          "CursorBlame: Annotations snoozed for 30 minutes. Press Alt+Shift+Z to cancel."
+        );
+      }
+    })
+  );
+
   // -------------------------------------------------------------------------
   // Core: show blame for the current cursor line
   // -------------------------------------------------------------------------
   async function showBlameForEditor(
     editor: vscode.TextEditor
   ): Promise<void> {
-    if (!config.enabled) {
+    if (!config.enabled || isSnoozed()) {
       clearDecoration(editor, decorationType);
       clearGutterDecorations(editor);
       statusBar.hide();
@@ -616,9 +663,9 @@ function doActivate(context: vscode.ExtensionContext): void {
     statusBar.text = formatStatusBar(info);
     statusBar.show();
 
-    // Apply gutter decorations if gutterMode is on (v0.3)
+    // Apply gutter decorations if gutterMode is on (v0.3); recency filter v1.1
     if (config.gutterMode) {
-      applyGutterDecorations(editor, fileBlame, ensureGutterType());
+      applyGutterDecorations(editor, fileBlame, ensureGutterType(), config.gutterRecentDays);
     } else {
       clearGutterDecorations(editor);
     }
@@ -671,9 +718,33 @@ function doActivate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      clearDecoration(editor, decorationType);
-      lastAnnotatedLine = -1;
-      lastAnnotatedEditor = undefined;
+      // v1.1: Flicker-free fast path — if blame is already cached for this
+      // file and the new line has data, render immediately without clearing
+      // first. This eliminates the visible gap introduced by debounce.
+      if (config.enabled && !isSnoozed() && currentFilePath && currentRepoRoot) {
+        const cachedHead = headShaByRepo.get(currentRepoRoot);
+        if (cachedHead) {
+          const cachedBlame = cache.get(currentFilePath, cachedHead);
+          if (cachedBlame) {
+            const gitLine = newLine + 1;
+            const info = applyIgnoredAuthors(cachedBlame, config.ignoredAuthors).get(gitLine);
+            if (info) {
+              // Render immediately — the full async path will follow after debounce
+              // to update remote info, commit body, and status bar.
+              applyDecoration(editor, newLine, info, null, config, decorationType);
+              lastAnnotatedLine = newLine;
+              lastAnnotatedEditor = editor;
+            }
+          }
+        }
+      }
+
+      if (!lastAnnotatedEditor || lastAnnotatedEditor !== editor || lastAnnotatedLine !== newLine) {
+        clearDecoration(editor, decorationType);
+        lastAnnotatedLine = -1;
+        lastAnnotatedEditor = undefined;
+      }
+
       currentSha = undefined;
       currentRepoRoot = undefined;
       statusBar.hide();
@@ -747,6 +818,14 @@ function doActivate(context: vscode.ExtensionContext): void {
           gutterDecorationType = undefined;
         }
 
+        // v1.1: sync hotspot state with the new setting value
+        if (config.hotspotEnabled) {
+          refreshHotspots().catch(() => {});
+        } else {
+          // Clear all existing hotspot badges immediately
+          hotspotProvider.setHotspots(new Map());
+        }
+
         const editor = vscode.window.activeTextEditor;
         if (editor) {
           showBlameForEditor(editor).catch(() => {});
@@ -771,8 +850,10 @@ function doActivate(context: vscode.ExtensionContext): void {
     }
   });
 
-  // ── Initial hotspot scan (v0.5) ──────────────────────────────────────────
-  refreshHotspots().catch(() => {});
+  // ── Initial hotspot scan (v0.5) — guarded by hotspotEnabled (v1.1) ────────
+  if (config.hotspotEnabled) {
+    refreshHotspots().catch(() => {});
+  }
 
   // -------------------------------------------------------------------------
   // Cleanup on deactivation
@@ -795,7 +876,20 @@ function doActivate(context: vscode.ExtensionContext): void {
   // Trigger for the currently active editor on startup.
   const initialEditor = vscode.window.activeTextEditor;
   if (initialEditor) {
-    showBlameForEditor(initialEditor).catch(() => {});
+    // v1.1: auto-populate the timeline immediately after first blame resolves
+    showBlameForEditor(initialEditor).then(() => {
+      const filePath = initialEditor.document.uri.fsPath;
+      const repoRoot = currentRepoRoot;
+      if (repoRoot) {
+        const head = headShaByRepo.get(repoRoot);
+        if (head) {
+          const cached = cache.get(filePath, head);
+          if (cached && cached.size > 0) {
+            timelineProvider.update(initialEditor.document.uri, cached);
+          }
+        }
+      }
+    }).catch(() => {});
   }
   // Pre-warm all already-open documents (v0.2)
   for (const doc of vscode.workspace.textDocuments) {

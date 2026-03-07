@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] — 2026-03-07
+
+### Added
+
+- **Flicker-free line transitions** — when moving between lines in a file whose blame is already cached, the new annotation is rendered immediately (no blank gap). The async debounce path still fires afterwards to refresh remote info and the full commit body
+- **Snooze command** (`CursorBlame: Snooze Annotations (30 min)`, `Alt+Shift+Z`) — temporarily hides all annotations and the status bar item for 30 minutes; press the same keybinding again to cancel early. Status bar shows a `$(bell-slash) CursorBlame snoozed` indicator while active
+- **Gutter recent-only filter** (`cursorblame.gutterRecentDays`) — when `gutterMode` is enabled, set this to a number of days (e.g. `30`) to show gutter annotations only for lines changed within that window. Default `0` = annotate all lines as before
+- **Hotspot toggle** (`cursorblame.hotspotEnabled`) — disable the Explorer fire-badge hotspot decorations independently from the rest of the extension. Toggling it off immediately clears any existing badges
+
+### Fixed
+
+- Timeline sidebar panel is now auto-populated from the active file's blame data on extension startup, so it is no longer empty until the first cursor movement
+
+---
+
 ## [1.0.0] — 2026-03-07
 
 ### Changed
@@ -73,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workspace trust support — disabled automatically in untrusted workspaces
 - Compatible with VSCode ≥ 1.75.0 and Cursor
 
+[1.1.0]: https://github.com/hernanc/cursorblame/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/hernanc/cursorblame/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/hernanc/cursorblame/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hernanc/cursorblame/releases/tag/v0.1.0
