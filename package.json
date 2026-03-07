@@ -2,7 +2,7 @@
   "name": "cursorblame",
   "displayName": "CursorBlame",
   "description": "Inline git blame on the active cursor line — hover to reveal, click to open the commit on your remote.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "HernanC",
   "license": "MIT",
   "homepage": "https://github.com/hernanc/cursorblame#readme",
@@ -227,6 +227,13 @@
           "type": "boolean",
           "default": true,
           "description": "Show fire-badge hotspot decorations in the Explorer for files with high commit churn. Disable to remove the badges without affecting other features."
+        },
+        "cursorblame.snoozeDurationMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 480,
+          "description": "Duration in minutes for the Snooze Annotations command (Alt+Shift+Z). After this time, annotations resume automatically. Range: 1–480."
         }
       }
     }

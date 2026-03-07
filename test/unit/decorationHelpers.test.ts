@@ -22,6 +22,7 @@ import {
   THEME_PRESETS,
   resolveThemePreset,
   isRecentLine,
+  hasMultipleDistinctLines,
 } from "../../src/decorationHelpers";
 import type { BlameInfo, BlameConfig } from "../../src/types";
 
@@ -581,5 +582,53 @@ describe("isRecentLine", () => {
   it("handles a negative recentDays value like 0 (show all)", () => {
     const veryOld = nowSeconds() - 365 * 86400;
     assert.strictEqual(isRecentLine(veryOld, -1), true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasMultipleDistinctLines (v1.2)
+// ---------------------------------------------------------------------------
+
+/** Minimal helper to build a SelectionLike object for testing. */
+function sel(line: number): { active: { line: number } } {
+  return { active: { line } };
+}
+
+describe("hasMultipleDistinctLines", () => {
+  it("returns false for an empty array", () => {
+    assert.strictEqual(hasMultipleDistinctLines([]), false);
+  });
+
+  it("returns false for a single selection", () => {
+    assert.strictEqual(hasMultipleDistinctLines([sel(5)]), false);
+  });
+
+  it("returns false when all selections are on the same line (column select)", () => {
+    assert.strictEqual(
+      hasMultipleDistinctLines([sel(3), sel(3), sel(3)]),
+      false
+    );
+  });
+
+  it("returns true when two cursors are on different lines", () => {
+    assert.strictEqual(hasMultipleDistinctLines([sel(1), sel(5)]), true);
+  });
+
+  it("returns true when the second cursor differs even if others match", () => {
+    assert.strictEqual(
+      hasMultipleDistinctLines([sel(10), sel(10), sel(11)]),
+      true
+    );
+  });
+
+  it("returns false for two selections on line 0 (first line edge case)", () => {
+    assert.strictEqual(hasMultipleDistinctLines([sel(0), sel(0)]), false);
+  });
+
+  it("returns true for three cursors all on different lines", () => {
+    assert.strictEqual(
+      hasMultipleDistinctLines([sel(0), sel(1), sel(2)]),
+      true
+    );
   });
 });

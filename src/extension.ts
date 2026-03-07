@@ -28,7 +28,7 @@ import {
   OPEN_COMMIT_COMMAND,
   recreateDecorationType,
 } from "./decoration";
-import { formatStatusBar } from "./decorationHelpers";
+import { formatStatusBar, hasMultipleDistinctLines } from "./decorationHelpers";
 import {
   blameFile,
   blameFileFollow,
@@ -81,6 +81,8 @@ function readConfig(): BlameConfig {
     // v1.1
     gutterRecentDays: cfg.get<number>("gutterRecentDays", 0),
     hotspotEnabled: cfg.get<boolean>("hotspotEnabled", true),
+    // v1.2
+    snoozeDurationMinutes: cfg.get<number>("snoozeDurationMinutes", 30),
   };
 }
 
@@ -161,6 +163,22 @@ export async function activate(
   };
   return api;
 }
+
+// ---------------------------------------------------------------------------
+// Module-level constants and pure helpers
+// ---------------------------------------------------------------------------
+
+/** Sentinel BlameInfo used as a "loading…" placeholder before git blame returns. */
+const LOADING_BLAME_INFO: import("./types").BlameInfo = {
+  sha: "0".repeat(40),
+  shortSha: "00000000",
+  author: "",
+  authorEmail: "",
+  authorTime: 0,
+  summary: "loading\u2026",
+  isUncommitted: true,
+};
+
 
 function doActivate(context: vscode.ExtensionContext): void {
   let config = readConfig();
@@ -522,9 +540,7 @@ function doActivate(context: vscode.ExtensionContext): void {
     })
   );
 
-  // ── Command: snooze / unsnooze (v1.1) ────────────────────────────────────
-  const SNOOZE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-
+  // ── Command: snooze / unsnooze (v1.1; configurable duration v1.2) ─────────
   context.subscriptions.push(
     vscode.commands.registerCommand("cursorblame.snooze", () => {
       const editor = vscode.window.activeTextEditor;
@@ -540,8 +556,9 @@ function doActivate(context: vscode.ExtensionContext): void {
           showBlameForEditor(editor).catch(() => {});
         }
       } else {
-        // Toggle on: snooze for 30 minutes
-        snoozedUntil = Date.now() + SNOOZE_DURATION_MS;
+        // Toggle on: snooze for the configured duration (default 30 min)
+        const durationMs = config.snoozeDurationMinutes * 60 * 1000;
+        snoozedUntil = Date.now() + durationMs;
         if (editor) {
           clearDecoration(editor, decorationType);
           clearGutterDecorations(editor);
@@ -549,10 +566,10 @@ function doActivate(context: vscode.ExtensionContext): void {
         lastAnnotatedLine = -1;
         lastAnnotatedEditor = undefined;
         currentSha = undefined;
-        statusBar.text = "$(bell-slash) CursorBlame snoozed";
+        statusBar.text = `$(bell-slash) CursorBlame snoozed (${config.snoozeDurationMinutes} min)`;
         statusBar.show();
         vscode.window.showInformationMessage(
-          "CursorBlame: Annotations snoozed for 30 minutes. Press Alt+Shift+Z to cancel."
+          `CursorBlame: Annotations snoozed for ${config.snoozeDurationMinutes} minute${config.snoozeDurationMinutes === 1 ? "" : "s"}. Press Alt+Shift+Z to cancel.`
         );
       }
     })
@@ -709,6 +726,23 @@ function doActivate(context: vscode.ExtensionContext): void {
       const editor = event.textEditor;
       const newLine = editor.selection.active.line;
 
+      // v1.2: Multi-cursor guard — when cursors span multiple distinct lines,
+      // annotations would be misleading (which line do we annotate?).
+      // Clear any existing annotation and show a neutral status bar hint.
+      if (hasMultipleDistinctLines(event.selections)) {
+        clearDecoration(editor, decorationType);
+        lastAnnotatedLine = -1;
+        lastAnnotatedEditor = undefined;
+        currentSha = undefined;
+        statusBar.text = "$(git-commit) Multiple selections";
+        statusBar.show();
+        if (debounceTimer !== undefined) {
+          clearTimeout(debounceTimer);
+          debounceTimer = undefined;
+        }
+        return;
+      }
+
       // "always" mode: don't clear & redebounce when typing on the same line (v0.2)
       if (
         config.mode === "always" &&
@@ -721,11 +755,13 @@ function doActivate(context: vscode.ExtensionContext): void {
       // v1.1: Flicker-free fast path — if blame is already cached for this
       // file and the new line has data, render immediately without clearing
       // first. This eliminates the visible gap introduced by debounce.
+      let cacheIsWarm = false;
       if (config.enabled && !isSnoozed() && currentFilePath && currentRepoRoot) {
         const cachedHead = headShaByRepo.get(currentRepoRoot);
         if (cachedHead) {
           const cachedBlame = cache.get(currentFilePath, cachedHead);
           if (cachedBlame) {
+            cacheIsWarm = true;
             const gitLine = newLine + 1;
             const info = applyIgnoredAuthors(cachedBlame, config.ignoredAuthors).get(gitLine);
             if (info) {
@@ -743,6 +779,20 @@ function doActivate(context: vscode.ExtensionContext): void {
         clearDecoration(editor, decorationType);
         lastAnnotatedLine = -1;
         lastAnnotatedEditor = undefined;
+      }
+
+      // v1.2: Loading placeholder — when cache is cold and the document is a
+      // real file, show a subtle "loading…" annotation immediately so there is
+      // visual feedback before git blame finishes.
+      if (
+        config.enabled &&
+        !isSnoozed() &&
+        !cacheIsWarm &&
+        editor.document.uri.scheme === "file"
+      ) {
+        applyDecoration(editor, newLine, LOADING_BLAME_INFO, null, config, decorationType);
+        lastAnnotatedLine = newLine;
+        lastAnnotatedEditor = editor;
       }
 
       currentSha = undefined;

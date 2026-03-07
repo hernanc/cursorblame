@@ -71,7 +71,7 @@ CursorBlame is distributed as a `.vsix` file via GitHub Releases — no Marketpl
 
 ### Step 1 — Download
 
-Go to the [Releases page](https://github.com/hernanc/cursorblame/releases/latest) and download the `.vsix` file from the latest release (e.g. `cursorblame-1.1.0.vsix`).
+Go to the [Releases page](https://github.com/hernanc/cursorblame/releases/latest) and download the `.vsix` file from the latest release (e.g. `cursorblame-1.2.0.vsix`).
 
 ### Step 2 — Install
 
@@ -79,10 +79,10 @@ Go to the [Releases page](https://github.com/hernanc/cursorblame/releases/latest
 
 ```bash
 # VS Code
-code --install-extension cursorblame-1.1.0.vsix
+code --install-extension cursorblame-1.2.0.vsix
 
 # Cursor
-cursor --install-extension cursorblame-1.1.0.vsix
+cursor --install-extension cursorblame-1.2.0.vsix
 ```
 
 **Option B — GUI**
@@ -160,6 +160,12 @@ All settings live under the `cursorblame` namespace and can be changed in `setti
 | Setting | Default | Description |
 |---|---|---|
 | `cursorblame.hotspotEnabled` | `true` | Show 🔥 fire-badge decorations in the Explorer for files with high commit churn. Disable to remove badges without affecting other features |
+
+### Snooze
+
+| Setting | Default | Description |
+|---|---|---|
+| `cursorblame.snoozeDurationMinutes` | `30` | How long (in minutes) the Snooze command (`Alt+Shift+Z`) hides annotations. Range: 1–480 |
 
 ### Token Authentication (for PR/MR links)
 

@@ -178,6 +178,37 @@ export function formatGutterLabel(info: BlameInfo): string {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-cursor guard (v1.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal structural type for a cursor position — avoids importing vscode in
+ * this module so the helper remains unit-testable without an extension host.
+ */
+interface SelectionLike {
+  active: { line: number };
+}
+
+/**
+ * Returns true when the given selections span more than one distinct editor line.
+ *
+ * Column-select on a single line produces multiple `SelectionLike` objects that
+ * all share the same `active.line`, so this function returns false for that case
+ * — blame still shows normally.
+ *
+ * Pure function with no VS Code API dependency.
+ */
+export function hasMultipleDistinctLines(
+  selections: readonly SelectionLike[]
+): boolean {
+  if (selections.length <= 1) {
+    return false;
+  }
+  const firstLine = selections[0].active.line;
+  return selections.some((s) => s.active.line !== firstLine);
+}
+
+// ---------------------------------------------------------------------------
 // Gutter recency filter (v1.1)
 // ---------------------------------------------------------------------------
 

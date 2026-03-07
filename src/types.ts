@@ -80,6 +80,9 @@ export interface BlameConfig {
   gutterRecentDays: number;
   /** When false, hotspot file badges in the Explorer are disabled. */
   hotspotEnabled: boolean;
+  // ── v1.2 ──────────────────────────────────────────────────────────────────
+  /** Duration in minutes for the snooze command. Default 30. */
+  snoozeDurationMinutes: number;
 }
 
 /** Aggregated per-file authorship statistics (v0.5+). */

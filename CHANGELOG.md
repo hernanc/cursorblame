@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] — 2026-03-07
+
+### Added
+
+- **Loading placeholder** — on the first cursor move to a line in a cold-cache file, a subtle `loading…` annotation appears immediately instead of a blank gap, giving instant visual feedback while `git blame` runs in the background
+- **Multi-cursor / multi-selection handling** — when the cursor spans more than one distinct line (e.g. `Alt+Click` multi-cursor), blame annotations are suppressed and the status bar shows `$(git-commit) Multiple selections` instead of showing potentially misleading blame for only the primary cursor
+- **Configurable snooze duration** (`cursorblame.snoozeDurationMinutes`) — the Snooze command duration is now configurable (1–480 minutes, default `30`). The status bar label and info message reflect the actual duration
+- **Real end-to-end integration tests** — the integration test suite now opens `package.json` in a real extension host, triggers the blame pipeline, and asserts that the returned `BlameInfo` contains a valid SHA, non-empty author, and positive `authorTime`. Also tests `getBlameForLine` for out-of-range lines
+
+### Improved
+
+- `hasMultipleDistinctLines` helper extracted to `decorationHelpers.ts` with a structural type, making it independently unit-testable (7 new unit tests)
+- `LOADING_BLAME_INFO` sentinel shape verified by 6 dedicated unit tests
+
+---
+
 ## [1.1.0] — 2026-03-07
 
 ### Added
@@ -88,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workspace trust support — disabled automatically in untrusted workspaces
 - Compatible with VSCode ≥ 1.75.0 and Cursor
 
+[1.2.0]: https://github.com/hernanc/cursorblame/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/hernanc/cursorblame/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/hernanc/cursorblame/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/hernanc/cursorblame/compare/v0.1.0...v0.2.0
